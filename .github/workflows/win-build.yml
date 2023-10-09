@@ -1,0 +1,34 @@
+name: Windows
+on: workflow_dispatch
+jobs:
+  build:
+    permissions:
+      contents: write
+    runs-on: windows-2022
+    steps:
+      - name: Checkout onevpl
+        uses: actions/checkout@v4
+        with:
+          repository: oneapi-src/oneVPL
+          ref: v2023.3.1
+          path: onevpl
+      - name: Init MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+      - name: Build onevpl
+        run: |
+          cd onevpl
+          mkdir build
+          cd build
+          cmake .. -DBUILD_DEV=ON -DBUILD_DISPATCHER=ON -DBUILD_TOOLS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_PREVIEW=OFF -DINSTALL_EXAMPLE_CODE=OFF -DBUILD_DISPATCHER_ONEVPL_EXPERIMENTAL=ON -DBUILD_TOOLS_ONEVPL_EXPERIMENTAL=OFF
+          cmake --build . --config Debug
+          cmake --install . --config Debug --prefix install/Debug
+          cmake --build . --config Release
+          cmake --install . --config Release --prefix install/Release
+      - name: Generate zip
+        run: |
+          echo ${{ github.sha }} > Release.txt
+          Compress-Archive -Path ./onevpl/build/install/*,./Release.txt -DestinationPath onevpl.zip
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: onevpl.zip
