@@ -1,0 +1,69 @@
+name: Windows
+on: workflow_dispatch
+jobs:
+  build:
+    permissions:
+      contents: write
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          repository: oneapi-src/oneVPL
+          ref: v2023.3.1
+          path: onevpl
+      - name: Init MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+      - name: Build onevpl
+        run: |
+          cd onevpl
+          mkdir build
+          cd build
+          cmake .. -DBUILD_DEV=ON -DBUILD_DISPATCHER=ON -DBUILD_TOOLS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_PREVIEW=OFF -DINSTALL_EXAMPLE_CODE=OFF -DBUILD_DISPATCHER_ONEVPL_EXPERIMENTAL=ON -DBUILD_TOOLS_ONEVPL_EXPERIMENTAL=OFF
+          cmake --build . --config Debug
+          cmake --install . --config Debug --prefix install/Debug
+          cmake --build . --config Release
+          cmake --install . --config Release --prefix install/Release
+      - name: Generate zip
+        run: |
+          echo ${{ github.sha }} > Release.txt
+          Compress-Archive -Path ./onevpl/build/install/*,./Release.txt -DestinationPath onevpl.win.${{ github.ref_name }}.zip
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: onevpl.win.${{ github.ref_name }}.zip
+  Linux:
+    permissions:
+      contents: write
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          repository: oneapi-src/oneVPL
+          ref: v2023.3.1
+          path: onevpl
+      - name: Install deps
+        run: |
+          sudo apt-get -y install gcc-10 g++-10
+          alias gcc='gcc-10'
+          alias g++='g++-10'
+          export CC=`which gcc-10`
+          export CXX=`which gcc-10`
+      - name: Build
+        run: |
+          cd onevpl
+          mkdir build
+          cd build
+          cmake .. -B Release -DCMAKE_BUILD_TYPE=Release -DBUILD_DEV=ON -DBUILD_DISPATCHER=ON -DBUILD_TOOLS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_PREVIEW=OFF -DINSTALL_EXAMPLE_CODE=OFF -DBUILD_DISPATCHER_ONEVPL_EXPERIMENTAL=ON -DBUILD_TOOLS_ONEVPL_EXPERIMENTAL=OFF
+          cmake --build  Release
+          cmake --install Release --prefix install/Release
+      - name: Generate tar
+        run: |
+          echo ${{ github.sha }} > Release.txt
+          cp Release.txt ./onevpl/build/install/Release
+          tar -czvf onevpl.linux.${{ github.ref_name }}.tar.gz -C ./onevpl/build/install/Release .
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: onevpl.linux.${{ github.ref_name }}.tar.gz
